@@ -1,0 +1,16 @@
+--extra-index-url https://download.pytorch.org/whl/cu126
+flask 
+numpy<2.1.0
+flask-cors 
+paho-mqtt 
+requests
+opencv-python
+redis
+torch
+torchvision
+torchaudio
+ultralytics
+websocket-server
+supervision
+torch-tensorrt 
+tensorrt
