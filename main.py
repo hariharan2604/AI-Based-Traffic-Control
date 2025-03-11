@@ -2,7 +2,7 @@ import threading
 from config.settings import VIDEO_SOURCES
 from core.video_processing import VideoProcessor
 from core.traffic_signal_control import manage_traffic_signals
-from core.mqtt_handler import mqtt_setup
+from core.mqtt_client import mqtt_setup
 from core.websocket_server import WebSocketServer
 
 def start_video_processing(mqtt_client, ws_server):

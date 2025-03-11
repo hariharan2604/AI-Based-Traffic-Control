@@ -4,8 +4,8 @@ import time
 import base64
 from ultralytics import YOLO
 from collections import defaultdict
-from config.settings import VIDEO_SOURCES
 import paho.mqtt.client as mqtt
+from config.settings import VIDEO_SOURCES
 from core.websocket_server import WebSocketServer
 
 class VideoProcessor:
