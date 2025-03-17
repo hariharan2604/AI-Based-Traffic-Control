@@ -15,3 +15,4 @@ VIDEO_SOURCES = [
 
 ACO_DEFAULT_DURATION = 30  # Default signal time (seconds)
 ACO_MAX_DURATION = 90  # Maximum green light duration
+MIN_UPDATE_THRESHOLD = 5  # Only update signals if change is 5+ seconds
