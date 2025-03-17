@@ -8,12 +8,19 @@ class WebSocketServer:
         self.server = WebsocketServer(host=self.host, port=self.port)
         self.server.set_fn_new_client(self.new_client)
         self.server.set_fn_client_left(self.client_left)
+        self.client_count = 0
+        self.client_event = threading.Event()  # Event to notify client connection
 
     def new_client(self, client, server):
-        print(f"✅ [WebSocket {self.port}] New client connected: {client}")
+        self.client_count += 1
+        self.client_event.set()  # Signal processing to start
+        print(f"✅ [WebSocket {self.port}] New client connected: {client} (Total: {self.client_count})")
 
     def client_left(self, client, server):
-        print(f"❌ [WebSocket {self.port}] Client disconnected: {client}")
+        self.client_count -= 1
+        if self.client_count == 0:
+            self.client_event.clear()  # Signal processing to stop
+        print(f"❌ [WebSocket {self.port}] Client disconnected: {client} (Remaining: {self.client_count})")
 
     def send_frame(self, message):
         """Sends encoded frame + vehicle counts via WebSocket."""

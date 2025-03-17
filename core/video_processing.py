@@ -1,12 +1,12 @@
 import cv2
 import time
 import json
-import base64
 import threading
+import base64
+import queue
 from collections import defaultdict
 from ultralytics import YOLO
 from ultralytics.utils.plotting import Annotator, colors
-
 
 class VideoProcessor:
     def __init__(self, video_path, port, mqtt_client, ws_server):
@@ -18,10 +18,15 @@ class VideoProcessor:
         self.target_classes = {1, 2, 3, 5, 7}  # Vehicle classes
         self.class_track_ids = defaultdict(set)  # Unique vehicle ID tracking
         self.stop_event = threading.Event()  # Flag to stop processing
-        self.clients_connected = True  # Assume WebSocket clients are active
+        self.frame_queue = queue.Queue(maxsize=1)  # Store latest frame
+        self.clients_connected = False  # Track WebSocket clients
+
+        # Start WebSocket frame streaming thread
+        self.stream_thread = threading.Thread(target=self.stream_frames, daemon=True)
+        self.stream_thread.start()
 
     def send_frame_to_clients(self, frame, vehicle_counts):
-        """Encodes and sends the frame + vehicle counts via WebSocket."""
+        """Send latest frame via WebSocket (optimized for efficiency)."""
         message = {"frame": frame, "vehicle_counts": vehicle_counts}
         self.ws_server.send_frame(json.dumps(message))
 
@@ -47,9 +52,9 @@ class VideoProcessor:
         try:
             frame_count = 0
             while not self.stop_event.is_set():
-                if not self.clients_connected:
-                    time.sleep(0.1)
-                    continue
+                if self.ws_server.client_count == 0:
+                    print(f"⏸️ Waiting for WebSocket clients on port {self.port}...")
+                    self.ws_server.client_event.wait()  # Wait until a client connects
 
                 ret, im0 = cap.read()
                 if not ret:
@@ -75,14 +80,15 @@ class VideoProcessor:
                                 self.class_track_ids[class_name].add(track_id)
                                 annotator.box_label(bbox, label, color=colors(track_id, True))
 
-                    _, buffer = cv2.imencode(".jpg", im0, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+                    _, buffer = cv2.imencode(".jpg", im0, [int(cv2.IMWRITE_JPEG_QUALITY), 70])  # Compress image
                     encoded_frame = base64.b64encode(buffer).decode("utf-8")
 
                     # Count unique vehicles
                     vehicle_counts = {cls: len(ids) for cls, ids in self.class_track_ids.items()}
 
-                    # Send frame to WebSocket clients
-                    self.send_frame_to_clients(encoded_frame, vehicle_counts)
+                    # Add frame to queue (only latest frame is stored)
+                    if not self.frame_queue.full():
+                        self.frame_queue.put((encoded_frame, vehicle_counts))
 
                     # Publish data to MQTT
                     self.mqtt_client.publish(f"traffic/density/{self.port}", json.dumps(vehicle_counts))
@@ -94,3 +100,13 @@ class VideoProcessor:
 
         finally:
             cap.release()
+
+    def stream_frames(self):
+        """Continuously sends the latest frame to WebSocket clients."""
+        while not self.stop_event.is_set():
+            if self.ws_server.client_count > 0 and not self.frame_queue.empty():
+                frame, vehicle_counts = self.frame_queue.get()
+                self.send_frame_to_clients(frame, vehicle_counts)
+            else:
+                time.sleep(0.05)  # Reduce CPU usage if no clients
+
