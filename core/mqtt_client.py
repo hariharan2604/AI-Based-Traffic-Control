@@ -18,6 +18,7 @@ emergency_lock = threading.Lock()
 def on_message(client, userdata, message):
     """Handles incoming MQTT messages for emergency vehicles and traffic density."""
     global manual_override, vehicle_density_data, emergency_events
+
     topic = message.topic
     payload = message.payload.decode()
 
@@ -42,8 +43,10 @@ def on_message(client, userdata, message):
             with emergency_lock:
                 if data.get("emergency"):
                     emergency_events.add(intersection)
+                    logging.info(f"🚨 Emergency vehicle detected at intersection {intersection}")
                 else:
                     emergency_events.discard(intersection)
+                    logging.info(f"🚨 Emergency cleared at intersection {intersection}")
 
     except json.JSONDecodeError:
         logging.error(f"⚠️ Invalid JSON in MQTT message: {payload}")
