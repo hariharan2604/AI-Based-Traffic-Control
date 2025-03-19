@@ -14,7 +14,7 @@ def start_video_processing(mqtt_client, ws_servers):
         thread = threading.Thread(target=processor.process_stream, daemon=True)
         thread.start()
         threads.append(thread)
-        print(f"🚦 Started video processing for {video_path} on WebSocket {port}")
+        print(f"📹 Started video processing for {video_path} on WebSocket {port}")
 
     return threads
 
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     # Start traffic signal management in a separate thread
     signal_management_thread = threading.Thread(
         target=cycle_signals,
-        args=(mqtt_client,),
+        args=(mqtt_client, ws_servers),  # Pass WebSocket servers
         daemon=True
     )
     signal_management_thread.start()

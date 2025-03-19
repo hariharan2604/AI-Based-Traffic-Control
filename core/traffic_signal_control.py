@@ -23,21 +23,28 @@ signal_timers = {}  # Tracks last state change time
 density_history = {}  # For smoothing traffic density
 signal_queue = []  # Queue to rotate active signals
 
-def initialize_signals():
-    """Start all signals at RED and queue them in order."""
+def initialize_signals(mqtt_client):
+    """Start all signals at RED, queue them in order, and publish initial states."""
     global signal_states, signal_queue
-    signal_states = {f"signal_{i+1}": "red" for i in range(4)}
+    signal_states = {f"{i+4001}": "red" for i in range(4)}
     signal_queue = list(signal_states.keys())  # Maintain order
+
+    # Publish initial signal states
+    for signal in signal_states:
+        update_signal(mqtt_client, signal, "red", BASE_RED_DURATION)  # Ensure red state is published
+
+    print("🚦 All signals initialized to RED and published.")
+
 
 def weighted_moving_average(signal, new_density):
     """Computes a weighted moving average to smooth density fluctuations."""
     if signal not in density_history:
         density_history[signal] = deque(maxlen=3)  # Store last 3 densities
-    
+
     density_history[signal].append(new_density)
-    
+
     weights = [0.2, 0.3, 0.5]  # Higher weight for recent data
-    
+
     return sum(w * d for w, d in zip(weights, density_history[signal]))
 
 def aco_optimize_signal(density_data):
@@ -74,11 +81,17 @@ def update_signal(mqtt_client, signal, state, duration):
 
     print(f"🚦 {signal}: {state.upper()} for {duration}s (Emergency: {signal in emergency_events})")
 
-def cycle_signals(mqtt_client):
-    """Manages traffic signal sequencing with ACO optimization."""
+def cycle_signals(mqtt_client, ws_servers):
+    """Manages traffic signal sequencing with ACO optimization, waiting for WebSocket clients."""
+    initialize_signals(mqtt_client=mqtt_client)
     global signal_queue
 
     while True:
+        # Ensure all WebSocket clients are connected before starting
+        while not all(ws.client_count > 0 for ws in ws_servers):
+            print("⏸️ Waiting for all WebSocket clients to connect...")
+            time.sleep(2)
+
         with manual_override_lock:
             is_manual_active = bool(manual_override)
 
@@ -108,6 +121,11 @@ def cycle_signals(mqtt_client):
 
         # Process signals in order
         for signal in signal_queue:
+            # If WebSocket clients disconnect, pause signal cycling
+            if not all(ws.client_count > 0 for ws in ws_servers):
+                print("⏸️ WebSocket client disconnected. Pausing traffic signal updates.")
+                break
+
             current_state = signal_states.get(signal, "red")
             green_duration = signal_durations.get(signal, ACO_DEFAULT_DURATION)
 
@@ -122,3 +140,4 @@ def cycle_signals(mqtt_client):
                     update_signal(mqtt_client, signal, "green", green_duration)
 
             time.sleep(0.5)  # Small delay to manage signal changes
+
