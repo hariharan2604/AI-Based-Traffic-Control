@@ -5,8 +5,8 @@ from config.settings import (
     ACO_DEFAULT_DURATION,
     ACO_MAX_DURATION,
     BASE_YELLOW_DURATION,
-    BASE_RED_DURATION,
     EMERGENCY_GREEN_BOOST,
+    MIN_GREEN_DURATION,
 )
 from core.mqtt_client import (
     manual_override,
@@ -59,9 +59,9 @@ def aco_optimize_signal(density_data):
         if any(signal in emergency_events for signal in pair):
             green_duration = min(ACO_MAX_DURATION, ACO_DEFAULT_DURATION + EMERGENCY_GREEN_BOOST)
         else:
-            green_duration = int(
+            green_duration = max(MIN_GREEN_DURATION, int(
                 ACO_DEFAULT_DURATION + ((pair_density / total_density) * (ACO_MAX_DURATION - ACO_DEFAULT_DURATION))
-            ) if total_density > 0 else ACO_DEFAULT_DURATION
+            )) if total_density > 0 else ACO_DEFAULT_DURATION
         
         pair_durations[pair] = green_duration
     
@@ -120,17 +120,12 @@ def cycle_signals(mqtt_client, ws_servers):
             current_pair = signal_pairs[pair_index]
             next_pair = signal_pairs[(pair_index + 1) % 2]
             
-            # Precompute next duration while the current signal is active
-            with vehicle_data_lock:
-                density_data = vehicle_density_data.copy()
-            next_pair_durations = aco_optimize_signal(density_data)
-            
             for signal in current_pair:
                 update_signal(mqtt_client, signal, "yellow", BASE_YELLOW_DURATION)
             time.sleep(BASE_YELLOW_DURATION)
             
             for signal in current_pair:
-                update_signal(mqtt_client, signal, "red", next_pair_durations.get(next_pair, ACO_DEFAULT_DURATION))
+                update_signal(mqtt_client, signal, "red", next_pair_durations.get(next_pair, ACO_DEFAULT_DURATION)+BASE_YELLOW_DURATION)
             
             active_signal = next_pair
             green_duration = next_pair_durations.get(next_pair, ACO_DEFAULT_DURATION)
