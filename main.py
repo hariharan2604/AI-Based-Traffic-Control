@@ -1,7 +1,7 @@
 import threading
 from config.settings import VIDEO_SOURCES
 from core.video_processing import VideoProcessor
-from core.traffic_signal_control import manage_traffic_signals
+from core.traffic_signal_control import cycle_signals
 from core.mqtt_client import mqtt_setup
 from core.websocket_server import WebSocketServer
 
@@ -33,7 +33,7 @@ if __name__ == "__main__":
 
     # Start traffic signal management in a separate thread
     signal_management_thread = threading.Thread(
-        target=manage_traffic_signals,
+        target=cycle_signals,
         args=(mqtt_client,),
         daemon=True
     )
