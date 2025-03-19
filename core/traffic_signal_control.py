@@ -34,7 +34,7 @@ def initialize_signals(mqtt_client):
     for signal in active_signal:
         update_signal(mqtt_client, signal, "green", ACO_DEFAULT_DURATION)
     for signal in signal_pairs[1]:
-        update_signal(mqtt_client, signal, "red", BASE_RED_DURATION)
+        update_signal(mqtt_client, signal, "red", ACO_DEFAULT_DURATION)
     
     print(f"🚦 Initialization complete. {active_signal} starts as GREEN.")
 
@@ -120,23 +120,23 @@ def cycle_signals(mqtt_client, ws_servers):
             current_pair = signal_pairs[pair_index]
             next_pair = signal_pairs[(pair_index + 1) % 2]
             
+            # Precompute next duration while the current signal is active
+            with vehicle_data_lock:
+                density_data = vehicle_density_data.copy()
+            next_pair_durations = aco_optimize_signal(density_data)
+            
             for signal in current_pair:
                 update_signal(mqtt_client, signal, "yellow", BASE_YELLOW_DURATION)
             time.sleep(BASE_YELLOW_DURATION)
             
             for signal in current_pair:
-                update_signal(mqtt_client, signal, "red", BASE_RED_DURATION)
-            time.sleep(BASE_RED_DURATION)
+                update_signal(mqtt_client, signal, "red", next_pair_durations.get(next_pair, ACO_DEFAULT_DURATION))
             
             active_signal = next_pair
             green_duration = next_pair_durations.get(next_pair, ACO_DEFAULT_DURATION)
             
             for signal in next_pair:
                 update_signal(mqtt_client, signal, "green", green_duration)
-            
-            with vehicle_data_lock:
-                density_data = vehicle_density_data.copy()
-            next_pair_durations = aco_optimize_signal(density_data)
             
             time.sleep(green_duration)
             pair_index = (pair_index + 1) % 2
