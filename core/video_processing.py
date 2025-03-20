@@ -14,24 +14,21 @@ class VideoProcessor:
         self.port = port
         self.mqtt_client = mqtt_client
         self.ws_server = ws_server
-        self.model = YOLO("models/yolo12n.pt")  # Load YOLO Model
-        self.target_classes = {1, 2, 3, 5, 7}  # Vehicle classes
-        self.class_track_ids = defaultdict(set)  # Unique vehicle ID tracking
-        self.stop_event = threading.Event()  # Flag to stop processing
-        self.frame_queue = queue.Queue(maxsize=1)  # Store latest frame
-        self.clients_connected = False  # Track WebSocket clients
+        self.model = YOLO("models/yolo12n.pt") 
+        self.target_classes = {1, 2, 3, 5, 7}  
+        self.class_track_ids = defaultdict(set) 
+        self.stop_event = threading.Event()  
+        self.frame_queue = queue.Queue(maxsize=1)  
+        self.clients_connected = False  
 
-        # Start WebSocket frame streaming thread
         self.stream_thread = threading.Thread(target=self.stream_frames, daemon=True)
         self.stream_thread.start()
 
     def send_frame_to_clients(self, frame, vehicle_counts):
-        """Send latest frame via WebSocket (optimized for efficiency)."""
         message = {"frame": frame, "vehicle_counts": vehicle_counts}
         self.ws_server.send_frame(json.dumps(message))
 
     def process_stream(self):
-        """Reads video, detects vehicles, streams frames via WebSocket & sends density to MQTT."""
         cap = cv2.VideoCapture(self.video_path)
         if not cap.isOpened():
             print(f"❌ Error: Unable to open video file {self.video_path}")
@@ -47,14 +44,12 @@ class VideoProcessor:
         )
         print(f"🎥 Processing video {self.video_path} at {fps} FPS")
 
-        # frame_skip = max(1, int(fps / 15))  # Reduce processing load
 
         try:
-            # frame_count = 0
             while not self.stop_event.is_set():
                 if self.ws_server.client_count == 0:
                     print(f"⏸️ Waiting for WebSocket clients on port {self.port}...")
-                    self.ws_server.client_event.wait()  # Wait until a client connects
+                    self.ws_server.client_event.wait() 
 
                 ret, im0 = cap.read()
                 if not ret:
@@ -64,7 +59,6 @@ class VideoProcessor:
                 if im0.shape[1] != w or im0.shape[0] != h:
                     im0 = cv2.resize(im0, (w, h))
 
-                # if frame_count % frame_skip == 0:
                 annotator = Annotator(im0, line_width=2)
                 results = self.model.track(im0, persist=True)
 
@@ -83,17 +77,13 @@ class VideoProcessor:
                 _, buffer = cv2.imencode(".webp", im0, [int(cv2.IMWRITE_WEBP_QUALITY), 90])  # Compress image
                 encoded_frame = base64.b64encode(buffer).decode("utf-8")
 
-                # Count unique vehicles
                 vehicle_counts = {cls: len(ids) for cls, ids in self.class_track_ids.items()}
 
-                # Add frame to queue (only latest frame is stored)
                 if not self.frame_queue.full():
                     self.frame_queue.put((encoded_frame, vehicle_counts))
 
-                # Publish data to MQTT
                 self.mqtt_client.publish(f"traffic/density/{self.port}", json.dumps(vehicle_counts))
 
-                # frame_count += 1
 
         except Exception as e:
             print(f"⚠️ Error processing {self.video_path}: {e}")
@@ -102,11 +92,10 @@ class VideoProcessor:
             cap.release()
 
     def stream_frames(self):
-        """Continuously sends the latest frame to WebSocket clients."""
         while not self.stop_event.is_set():
             if self.ws_server.client_count > 0 and not self.frame_queue.empty():
                 frame, vehicle_counts = self.frame_queue.get()
                 self.send_frame_to_clients(frame, vehicle_counts)
             else:
-                time.sleep(0.05)  # Reduce CPU usage if no clients
+                time.sleep(0.05)  
 

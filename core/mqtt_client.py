@@ -10,13 +10,11 @@ manual_override = {}
 vehicle_density_data = {}
 emergency_events = set()
 
-# Thread locks
 manual_override_lock = threading.Lock()
 vehicle_data_lock = threading.Lock()
 emergency_lock = threading.Lock()
 
 def on_message(client, userdata, message):
-    """Handles incoming MQTT messages for emergency vehicles and traffic density."""
     global manual_override, vehicle_density_data, emergency_events
 
     topic = message.topic
@@ -52,14 +50,12 @@ def on_message(client, userdata, message):
         logging.error(f"⚠️ Invalid JSON in MQTT message: {payload}")
 
 def on_connect(client, userdata, flags, rc):
-    """Logs MQTT connection status."""
     if rc == 0:
         logging.info("✅ Connected to MQTT broker.")
     else:
         logging.error(f"❌ MQTT connection failed with code {rc}")
 
 def mqtt_setup():
-    """Initializes and configures the MQTT client."""
     client = mqtt.Client()
     client.on_connect = on_connect
     client.on_message = on_message

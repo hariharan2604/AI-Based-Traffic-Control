@@ -26,7 +26,7 @@ def initialize_signals(mqtt_client):
     
     signal_pairs = [("4001", "4003"), ("4002", "4004")]
     signal_states = {signal: "red" for pair in signal_pairs for signal in pair}
-    active_signal = signal_pairs[0]  # First pair starts GREEN
+    active_signal = signal_pairs[0] 
     
     for signal in active_signal:
         update_signal(mqtt_client, signal, "green", ACO_DEFAULT_DURATION)
@@ -46,7 +46,6 @@ def aco_optimize_signal(density_data):
     signal_pairs = [("4001", "4003"), ("4002", "4004")]
     pair_durations = {}
 
-    # Convert keys to strings to prevent lookup issues
     density_data = {str(k): v for k, v in density_data.items()}
 
     print(f"📊 Density Data Received: {json.dumps(density_data, indent=2)}")
@@ -83,7 +82,6 @@ def update_signal(mqtt_client, signal, state, duration):
     print(f"🚦 Updating {signal} to {state.upper()} for {duration}s (Emergency: {signal in emergency_events})")
 
 def check_emergency_interrupt():
-    """Ensures emergency events are not missed due to rapid clearing."""
     global emergency_events
 
     if not emergency_events:
@@ -130,7 +128,6 @@ def handle_emergency(mqtt_client, emergency_pair):
             return
 
 def cycle_signals(mqtt_client, ws_servers):
-    """Manages traffic signals, ensuring immediate response to emergencies and synchronized red duration."""
     global active_signal
     signal_pairs = [("4001", "4003"), ("4002", "4004")]
     pair_index = 0
