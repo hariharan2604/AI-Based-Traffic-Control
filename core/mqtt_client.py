@@ -60,14 +60,11 @@ def mqtt_setup():
     client.on_connect = on_connect
     client.on_message = on_message
 
-    try:
-        client.connect(MQTT_BROKER, MQTT_PORT, 60)
-        client.subscribe("signal/manual/#")
-        client.subscribe("traffic/density/#")
-        client.subscribe("traffic/emergency/#")
-        client.loop_start()
-        logging.info("📡 MQTT listening for messages...")
-    except Exception as e:
-        logging.error(f"🚨 MQTT connection error: {e}")
-
+    client.connect(MQTT_BROKER, MQTT_PORT, 60)
+    client.subscribe("signal/manual/#")
+    client.subscribe("traffic/density/#")
+    client.subscribe("traffic/emergency/#")
+    client.loop_start()
+    
+    logging.info("📡 MQTT listening for messages...")
     return client
