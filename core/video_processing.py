@@ -4,9 +4,13 @@ import json
 import threading
 import base64
 import queue
+import logging
+import sys
+
 from collections import defaultdict
 from ultralytics import YOLO
 from ultralytics.utils.plotting import Annotator, colors
+
 
 class VideoProcessor:
     def __init__(self, video_path, port, mqtt_client, ws_server):
@@ -14,13 +18,18 @@ class VideoProcessor:
         self.port = port
         self.mqtt_client = mqtt_client
         self.ws_server = ws_server
-        self.model = YOLO("models/yolo12n.pt") 
-        self.target_classes = {1, 2, 3, 5, 7}  
-        self.class_track_ids = defaultdict(set) 
-        self.stop_event = threading.Event()  
-        self.frame_queue = queue.Queue(maxsize=1)  
-        self.clients_connected = False  
-
+        self.model = YOLO("models/yolo12n.pt")
+        self.target_classes = {1, 2, 3, 5, 7}
+        self.class_track_ids = defaultdict(set)
+        self.stop_event = threading.Event()
+        self.frame_queue = queue.Queue(maxsize=1)
+        self.clients_connected = False
+        logging.getLogger(__name__).addHandler(logging.StreamHandler(sys.stdout))
+        logging.basicConfig(
+            filename="main.log",
+            level=logging.INFO,
+            format="%(asctime)s %(name)s %(message)s",
+        )
         self.stream_thread = threading.Thread(target=self.stream_frames, daemon=True)
         self.stream_thread.start()
 
@@ -31,7 +40,7 @@ class VideoProcessor:
     def process_stream(self):
         cap = cv2.VideoCapture(self.video_path)
         if not cap.isOpened():
-            print(f"❌ Error: Unable to open video file {self.video_path}")
+            logging.error(f"❌ Error: Unable to open video file {self.video_path}")
             return
 
         w, h, fps = (
@@ -42,18 +51,21 @@ class VideoProcessor:
                 cv2.CAP_PROP_FPS,
             )
         )
-        print(f"🎥 Processing video {self.video_path} at {fps} FPS")
-
+        logging.info(f"🎥 Processing video {self.video_path} at {fps} FPS")
 
         try:
             while not self.stop_event.is_set():
                 if self.ws_server.client_count == 0:
-                    print(f"⏸️ Waiting for WebSocket clients on port {self.port}...")
-                    self.ws_server.client_event.wait() 
+                    logging.info(
+                        f"⏸️ Waiting for WebSocket clients on port {self.port}..."
+                    )
+                    self.ws_server.client_event.wait()
 
                 ret, im0 = cap.read()
                 if not ret:
-                    print(f"✅ Video processing completed for {self.video_path}.")
+                    logging.info(
+                        f"✅ Video processing completed for {self.video_path}."
+                    )
                     break
 
                 if im0.shape[1] != w or im0.shape[0] != h:
@@ -67,26 +79,35 @@ class VideoProcessor:
                     track_ids = results[0].boxes.id.int().cpu().tolist()
                     class_indices = results[0].boxes.cls.int().cpu().tolist()
 
-                    for bbox, track_id, class_idx in zip(bboxes, track_ids, class_indices):
+                    for bbox, track_id, class_idx in zip(
+                        bboxes, track_ids, class_indices
+                    ):
                         if class_idx in self.target_classes:
                             class_name = self.model.names[class_idx]
                             label = f"{class_name} {track_id}"
                             self.class_track_ids[class_name].add(track_id)
-                            annotator.box_label(bbox, label, color=colors(track_id, True))
+                            annotator.box_label(
+                                bbox, label, color=colors(track_id, True)
+                            )
 
-                _, buffer = cv2.imencode(".webp", im0, [int(cv2.IMWRITE_WEBP_QUALITY), 90])  # Compress image
+                _, buffer = cv2.imencode(
+                    ".webp", im0, [int(cv2.IMWRITE_WEBP_QUALITY), 90]
+                )  # Compress image
                 encoded_frame = base64.b64encode(buffer).decode("utf-8")
 
-                vehicle_counts = {cls: len(ids) for cls, ids in self.class_track_ids.items()}
+                vehicle_counts = {
+                    cls: len(ids) for cls, ids in self.class_track_ids.items()
+                }
 
                 if not self.frame_queue.full():
                     self.frame_queue.put((encoded_frame, vehicle_counts))
 
-                self.mqtt_client.publish(f"traffic/density/{self.port}", json.dumps(vehicle_counts))
-
+                self.mqtt_client.publish(
+                    f"traffic/density/{self.port}", json.dumps(vehicle_counts)
+                )
 
         except Exception as e:
-            print(f"⚠️ Error processing {self.video_path}: {e}")
+            logging.error(f"⚠️ Error processing {self.video_path}: {e}")
 
         finally:
             cap.release()
@@ -97,5 +118,4 @@ class VideoProcessor:
                 frame, vehicle_counts = self.frame_queue.get()
                 self.send_frame_to_clients(frame, vehicle_counts)
             else:
-                time.sleep(0.05)  
-
+                time.sleep(0.05)

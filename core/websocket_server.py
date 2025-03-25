@@ -1,5 +1,8 @@
 import threading
+import logging
+import sys
 from websocket_server import WebsocketServer
+
 
 class WebSocketServer:
 
@@ -7,22 +10,32 @@ class WebSocketServer:
         self.host = host
         self.port = port
         self.server = WebsocketServer(host=self.host, port=self.port)
-
+        logging.getLogger(__name__).addHandler(logging.StreamHandler(sys.stdout))
+        logging.basicConfig(
+            filename="main.log",
+            level=logging.INFO,
+            format="%(asctime)s %(name)s %(message)s",
+        )
         self.server.set_fn_new_client(self.new_client)
         self.server.set_fn_client_left(self.client_left)
 
         self.client_count = 0
         self.client_event = threading.Event()  #
+
     def new_client(self, client, server):
         self.client_count += 1
-        self.client_event.set()  
-        print(f"✅ [WebSocket {self.port}] New client connected: {client} (Total: {self.client_count})")
+        self.client_event.set()
+        logging.info(
+            f"✅ [WebSocket {self.port}] New client connected: {client} (Total: {self.client_count})"
+        )
 
     def client_left(self, client, server):
         self.client_count -= 1
         if self.client_count == 0:
-            self.client_event.clear() 
-        print(f"❌ [WebSocket {self.port}] Client disconnected: {client} (Remaining: {self.client_count})")
+            self.client_event.clear()
+        logging.error(
+            f"❌ [WebSocket {self.port}] Client disconnected: {client} (Remaining: {self.client_count})"
+        )
 
     def send_frame(self, message):
         self.server.send_message_to_all(message)
