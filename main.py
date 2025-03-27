@@ -9,7 +9,7 @@ from core.websocket_server import WebSocketServer
 
 logging.getLogger(__name__).addHandler(logging.StreamHandler(sys.stdout))
 logging.basicConfig(
-    filename="main.log", level=logging.INFO, format="%(asctime)s %(name)s %(message)s"
+level=logging.INFO, format="%(asctime)s %(name)s %(message)s"
 )
 
 

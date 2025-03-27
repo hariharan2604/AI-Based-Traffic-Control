@@ -12,7 +12,6 @@ class WebSocketServer:
         self.server = WebsocketServer(host=self.host, port=self.port)
         logging.getLogger(__name__).addHandler(logging.StreamHandler(sys.stdout))
         logging.basicConfig(
-            filename="main.log",
             level=logging.INFO,
             format="%(asctime)s %(name)s %(message)s",
         )

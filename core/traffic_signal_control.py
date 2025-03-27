@@ -20,7 +20,6 @@ from core.mqtt_client import (
 
 logging.getLogger(__name__).addHandler(logging.StreamHandler(sys.stdout))
 logging.basicConfig(
-    filename="main.log",
     level=logging.INFO,
     format="%(asctime)s %(name)s %(message)s",
 )

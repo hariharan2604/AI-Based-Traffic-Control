@@ -18,7 +18,7 @@ class VideoProcessor:
         self.port = port
         self.mqtt_client = mqtt_client
         self.ws_server = ws_server
-        self.model = YOLO("models/yolo12n.pt")
+        self.model = YOLO("models/yolo12n.engine",task='detect')
         self.target_classes = {1, 2, 3, 5, 7}
         self.class_track_ids = defaultdict(set)
         self.stop_event = threading.Event()
@@ -26,7 +26,6 @@ class VideoProcessor:
         self.clients_connected = False
         logging.getLogger(__name__).addHandler(logging.StreamHandler(sys.stdout))
         logging.basicConfig(
-            filename="main.log",
             level=logging.INFO,
             format="%(asctime)s %(name)s %(message)s",
         )
