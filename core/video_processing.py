@@ -66,8 +66,9 @@ class VideoProcessor:
 
                 ret, im0 = cap.read()
                 if not ret:
-                    logging.info(f"✅ Video processing completed for {self.video_path}.")
-                    break
+                    logging.info(f"🔄 Rewinding video {self.video_path}...")
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # Reset to the beginning
+                    continue
 
                 if im0.shape[1] != w or im0.shape[0] != h:
                     im0 = cv2.resize(im0, (w, h))
