@@ -18,7 +18,7 @@ class VideoProcessor:
         self.port = port
         self.mqtt_client = mqtt_client
         self.ws_server = ws_server
-        self.model = YOLO("models/yolo12n.engine",task='detect')
+        self.model = YOLO("models/yolo12n.engine", task='detect')
         self.target_classes = {1, 2, 3, 5, 7}
         self.class_track_ids = defaultdict(set)
         self.stop_event = threading.Event()
@@ -71,7 +71,7 @@ class VideoProcessor:
                     im0 = cv2.resize(im0, (w, h))
 
                 annotator = Annotator(im0, line_width=2)
-                results = self.model.track(im0, persist=True)
+                results = self.model.track(im0, persist=True, tracker="datasets/bytetrack.yaml")
 
                 if results[0].boxes.id is not None and results[0].boxes.cls is not None:
                     bboxes = results[0].boxes.xyxy
