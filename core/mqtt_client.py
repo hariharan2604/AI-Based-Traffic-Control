@@ -6,10 +6,8 @@ import sys
 
 from config.settings import MQTT_BROKER, MQTT_PORT
 
-logging.getLogger(__name__).addHandler(logging.StreamHandler(sys.stdout))
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(name)s %(message)s",
+    level=logging.INFO, format="%(asctime)s %(name)s [%(module)s] %(message)s"
 )
 
 manual_override = {}

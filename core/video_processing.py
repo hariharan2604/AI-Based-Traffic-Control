@@ -17,22 +17,16 @@ class VideoProcessor:
         self.port = port
         self.mqtt_client = mqtt_client
         self.ws_server = ws_server
-        self.model = YOLO("models/yolo12n.engine", task='detect')
+        self.model = YOLO("models/yolo12n.engine", task="detect")
         self.target_classes = {1, 2, 3, 5, 7}
         self.class_track_ids = defaultdict(set)
         self.class_track_ids_lock = threading.Lock()
         self.stop_event = threading.Event()
         self.frame_queue = queue.Queue(maxsize=1)
         self.clients_connected = False
-        
-        logging.getLogger(__name__).addHandler(logging.StreamHandler(sys.stdout))
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s %(name)s %(message)s",
-        )
-        
         self.stream_thread = threading.Thread(target=self.stream_frames, daemon=True)
         self.stream_thread.start()
+        logging.basicConfig(level=logging.INFO,format="%(asctime)s %(name)s [%(module)s] %(message)s")
 
     def send_frame_to_clients(self, frame, vehicle_counts):
         message = {"frame": frame, "vehicle_counts": vehicle_counts}
@@ -58,7 +52,9 @@ class VideoProcessor:
             while not self.stop_event.is_set():
                 if self.ws_server.client_count == 0:
                     if not self.clients_connected:
-                        logging.info(f"⏸️ Waiting for WebSocket clients on port {self.port}...")
+                        logging.info(
+                            f"⏸️ Waiting for WebSocket clients on port {self.port}..."
+                        )
                         self.clients_connected = True
                     self.ws_server.client_event.wait()
                 else:
@@ -75,7 +71,12 @@ class VideoProcessor:
 
                 annotator = Annotator(im0, line_width=2)
                 try:
-                    results = self.model.track(im0, persist=True, tracker="datasets/bytetrack.yaml")
+                    results = self.model.track(
+                        im0,
+                        persist=True,
+                        tracker="datasets/bytetrack.yaml",
+                        verbose=False,
+                    )
                 except Exception as e:
                     logging.error(f"⚠️ YOLO inference error: {e}")
                     continue
@@ -86,27 +87,39 @@ class VideoProcessor:
                     class_indices = results[0].boxes.cls.int().cpu().tolist()
 
                     with self.class_track_ids_lock:
-                        for bbox, track_id, class_idx in zip(bboxes, track_ids, class_indices):
+                        for bbox, track_id, class_idx in zip(
+                            bboxes, track_ids, class_indices
+                        ):
                             if class_idx in self.target_classes:
                                 class_name = self.model.names[class_idx]
                                 label = f"{class_name} {track_id}"
                                 self.class_track_ids[class_name].add(track_id)
-                                annotator.box_label(bbox, label, color=colors(track_id, True))
+                                annotator.box_label(
+                                    bbox, label, color=colors(track_id, True)
+                                )
 
-                _, buffer = cv2.imencode(".jpg", im0, [int(cv2.IMWRITE_JPEG_QUALITY), 65])
+                _, buffer = cv2.imencode(
+                    ".jpg", im0, [int(cv2.IMWRITE_JPEG_QUALITY), 65]
+                )
                 encoded_frame = base64.b64encode(buffer).decode("utf-8")
 
                 with self.class_track_ids_lock:
-                    vehicle_counts = {cls: len(ids) for cls, ids in self.class_track_ids.items() if ids}
+                    vehicle_counts = {
+                        cls: len(ids)
+                        for cls, ids in self.class_track_ids.items()
+                        if ids
+                    }
 
                 if not self.frame_queue.full():
                     self.frame_queue.put((encoded_frame, vehicle_counts))
 
-                self.mqtt_client.publish(f"traffic/density/{self.port}", json.dumps(vehicle_counts))
-        
+                self.mqtt_client.publish(
+                    f"traffic/density/{self.port}", json.dumps(vehicle_counts)
+                )
+
         except Exception as e:
             logging.error(f"⚠️ Error processing {self.video_path}: {e}")
-        
+
         finally:
             cap.release()
 

@@ -10,16 +10,11 @@ class WebSocketServer:
         self.host = host
         self.port = port
         self.server = WebsocketServer(host=self.host, port=self.port)
-        logging.getLogger(__name__).addHandler(logging.StreamHandler(sys.stdout))
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s %(name)s %(message)s",
-        )
         self.server.set_fn_new_client(self.new_client)
         self.server.set_fn_client_left(self.client_left)
-
         self.client_count = 0
         self.client_event = threading.Event()  #
+        logging.basicConfig(level=logging.INFO,format="%(asctime)s %(name)s [%(module)s] %(message)s")
 
     def new_client(self, client, server):
         self.client_count += 1

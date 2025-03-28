@@ -8,10 +8,12 @@ from core.traffic_signal_control import cycle_signals
 from core.mqtt_client import mqtt_setup
 from core.websocket_server import WebSocketServer
 
-logging.getLogger(__name__).addHandler(logging.StreamHandler(sys.stdout))
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s %(name)s [%(module)s] %(message)s"
+)
 
 stop_event = threading.Event()
+
 
 def start_video_processing(mqtt_client, ws_servers):
     threads = []
@@ -23,9 +25,12 @@ def start_video_processing(mqtt_client, ws_servers):
         thread = threading.Thread(target=processor.process_stream)
         thread.start()
         threads.append(thread)
-        logging.info(f"📹 Started video processing for {video_path} on WebSocket {port}")
+        logging.info(
+            f"📹 Started video processing for {video_path} on WebSocket {port}"
+        )
 
     return threads, processors
+
 
 def stop_all():
     logging.info("🛑 Stopping video processing and cleaning up...")
@@ -40,6 +45,7 @@ def stop_all():
     mqtt_client.disconnect()
     logging.info("✅ Cleanup complete. Exiting.")
     sys.exit(0)
+
 
 if __name__ == "__main__":
     ws_servers = [WebSocketServer(port=port) for _, port in VIDEO_SOURCES]
