@@ -134,9 +134,9 @@ def handle_emergency(mqtt_client, emergency_pair):
     # 🟡 Transition active signals to yellow
     for signal in active_signal:
         update_signal(mqtt_client, signal, "yellow", yellow_duration)
-    time.sleep(yellow_duration)
 
-    time.sleep(BASE_YELLOW_DURATION)  # Ensure red is stable before green
+    time.sleep(BASE_YELLOW_DURATION) 
+    
     # 🔴 Transition non-emergency signals to red
     for signal in non_emergency_signals:
         update_signal(mqtt_client, signal, "red", red_duration)
