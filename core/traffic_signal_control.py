@@ -165,11 +165,11 @@ def cycle_signals(mqtt_client, ws_servers):
             handle_emergency(mqtt_client, emergency_pair)
             continue
 
-        with manual_override_lock:
-            if manual_override:
-                logging.info("🔧 Manual Override Active. Skipping ACO.")
-                time.sleep(2)
-                continue
+        # with manual_override_lock:
+        #     if manual_override:
+        #         logging.info("🔧 Manual Override Active. Skipping ACO.")
+        #         time.sleep(2)
+        #         continue
 
         with vehicle_data_lock:
             density_data = vehicle_density_data.copy()

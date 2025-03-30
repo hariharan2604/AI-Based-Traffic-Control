@@ -4,7 +4,6 @@ import threading
 import base64
 import queue
 import logging
-import sys
 
 from collections import defaultdict
 from ultralytics import YOLO
