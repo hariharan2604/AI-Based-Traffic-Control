@@ -17,9 +17,11 @@ from core.mqtt_client import (
     emergency_events,
 )
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s [%(module)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s %(name)s [%(module)s] %(message)s"
+)
 signal_states = {}
-signal_timers = {}
+# signal_timers = {}
 density_history = {}
 active_signal = None
 last_active_signal = None
@@ -31,7 +33,7 @@ def initialize_signals(mqtt_client):
     signal_pairs = [("4001", "4003"), ("4002", "4004")]
     signal_states = {signal: "red" for pair in signal_pairs for signal in pair}
     active_signal = signal_pairs[0]
-    
+
     for signal in active_signal:
         update_signal(mqtt_client, signal, "green", ACO_DEFAULT_DURATION)
     for signal in signal_pairs[1]:
@@ -73,13 +75,6 @@ def aco_optimize_signal(density_data):
             )
             for signal in pair
         )
-
-        # if any(signal in emergency_events for signal in pair):
-        #     green_duration = ACO_MAX_DURATION + EMERGENCY_GREEN_BOOST
-        #     logging.info(
-        #         f"🚨 Emergency detected for {pair}. Green duration: {green_duration}s"
-        #     )
-        # else:
         density_ratio = (
             (pair_density / (total_density + 1e-6)) if total_density > 0 else 0.5
         )
@@ -96,7 +91,7 @@ def aco_optimize_signal(density_data):
 
 def update_signal(mqtt_client, signal, state, duration):
     signal_states[signal] = state
-    signal_timers[signal] = time.time()
+    # signal_timers[signal] = time.time()
     payload = {
         "state": state,
         "duration": duration,
@@ -128,27 +123,29 @@ def handle_emergency(mqtt_client, emergency_pair):
         f"🚨 Emergency detected in {emergency_pair}! Interrupting normal cycle."
     )
 
-    # Store last active signal before emergency
-    last_active_signal = active_signal
-
     green_duration = ACO_MAX_DURATION + EMERGENCY_GREEN_BOOST
     yellow_duration = BASE_YELLOW_DURATION
     red_duration = green_duration + yellow_duration
+
+    all_signals = {"4001", "4002", "4003", "4004"}
+    emergency_set = set(emergency_pair)
+    non_emergency_signals = all_signals - emergency_set
 
     # 🟡 Transition active signals to yellow
     for signal in active_signal:
         update_signal(mqtt_client, signal, "yellow", yellow_duration)
     time.sleep(yellow_duration)
 
-    # 🔴 Transition active signals to red
-    for signal in active_signal:
+    time.sleep(BASE_YELLOW_DURATION)  # Ensure red is stable before green
+    # 🔴 Transition non-emergency signals to red
+    for signal in non_emergency_signals:
         update_signal(mqtt_client, signal, "red", red_duration)
 
     # 🟢 Activate emergency pair
     for signal in emergency_pair:
         update_signal(mqtt_client, signal, "green", green_duration)
 
-    last_active_signal = emergency_pair
+    last_active_signal = emergency_pair  # ✅ Assign emergency pair as active
     time.sleep(green_duration)
 
 
