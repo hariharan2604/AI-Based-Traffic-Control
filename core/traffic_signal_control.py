@@ -1,7 +1,6 @@
 import json
 import time
 import logging
-import sys
 
 from collections import deque
 from config.settings import (
@@ -32,15 +31,15 @@ def initialize_signals(mqtt_client):
     signal_pairs = [("4001", "4003"), ("4002", "4004")]
     signal_states = {signal: "red" for pair in signal_pairs for signal in pair}
     active_signal = signal_pairs[0]
-
+    
     for signal in active_signal:
         update_signal(mqtt_client, signal, "green", ACO_DEFAULT_DURATION)
     for signal in signal_pairs[1]:
         update_signal(
             mqtt_client, signal, "red", ACO_DEFAULT_DURATION + BASE_YELLOW_DURATION
         )
-    time.sleep(ACO_DEFAULT_DURATION)
     logging.info(f"🚦 Initialization complete. {active_signal} starts as GREEN.")
+    time.sleep(ACO_DEFAULT_DURATION)
 
 
 def weighted_moving_average(signal, new_density):
@@ -75,20 +74,20 @@ def aco_optimize_signal(density_data):
             for signal in pair
         )
 
-        if any(signal in emergency_events for signal in pair):
-            green_duration = ACO_MAX_DURATION + EMERGENCY_GREEN_BOOST
-            logging.info(
-                f"🚨 Emergency detected for {pair}. Green duration: {green_duration}s"
-            )
-        else:
-            density_ratio = (
-                (pair_density / (total_density + 1e-6)) if total_density > 0 else 0.5
-            )
-            density_ratio = max(MIN_RATIO, min(MAX_RATIO, density_ratio))
-            green_duration = int(
-                ACO_DEFAULT_DURATION
-                + density_ratio * (ACO_MAX_DURATION - ACO_DEFAULT_DURATION)
-            )
+        # if any(signal in emergency_events for signal in pair):
+        #     green_duration = ACO_MAX_DURATION + EMERGENCY_GREEN_BOOST
+        #     logging.info(
+        #         f"🚨 Emergency detected for {pair}. Green duration: {green_duration}s"
+        #     )
+        # else:
+        density_ratio = (
+            (pair_density / (total_density + 1e-6)) if total_density > 0 else 0.5
+        )
+        density_ratio = max(MIN_RATIO, min(MAX_RATIO, density_ratio))
+        green_duration = int(
+            ACO_DEFAULT_DURATION
+            + density_ratio * (ACO_MAX_DURATION - ACO_DEFAULT_DURATION)
+        )
 
         pair_durations[pair] = green_duration
 
@@ -101,11 +100,11 @@ def update_signal(mqtt_client, signal, state, duration):
     payload = {
         "state": state,
         "duration": duration,
-        "emergency": signal in emergency_events,
+        "emergency": int(signal) in emergency_events,
     }
     mqtt_client.publish(f"signal/status/{signal}", json.dumps(payload))
     logging.info(
-        f"🚦 Updating {signal} to {state.upper()} for {duration}s (Emergency: {signal in emergency_events})"
+        f"🚦 Updating {signal} to {state.upper()} for {duration}s (Emergency: {int(signal) in emergency_events})"
     )
 
 

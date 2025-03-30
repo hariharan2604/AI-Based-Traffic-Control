@@ -13,10 +13,7 @@ VIDEO_SOURCES = [
     ("samples/inter4.mp4", 4004),
 ]
 
-ACO_DEFAULT_DURATION = 30  # Default signal time (seconds)
-ACO_MAX_DURATION = 90  # Maximum green light duration
-MIN_UPDATE_THRESHOLD = 5  # Only update signals if change is 5+ seconds
+ACO_DEFAULT_DURATION = 30
+ACO_MAX_DURATION = 60  
 BASE_YELLOW_DURATION = 5
-BASE_RED_DURATION = 40
-EMERGENCY_THRESHOLD = 200
 EMERGENCY_GREEN_BOOST = 20
