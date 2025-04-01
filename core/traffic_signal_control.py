@@ -91,7 +91,6 @@ def aco_optimize_signal(density_data):
 
 def update_signal(mqtt_client, signal, state, duration):
     signal_states[signal] = state
-    # signal_timers[signal] = time.time()
     payload = {
         "state": state,
         "duration": duration,
@@ -165,11 +164,34 @@ def cycle_signals(mqtt_client, ws_servers):
             handle_emergency(mqtt_client, emergency_pair)
             continue
 
-        # with manual_override_lock:
-        #     if manual_override:
-        #         logging.info("🔧 Manual Override Active. Skipping ACO.")
-        #         time.sleep(2)
-        #         continue
+        with manual_override_lock:
+            if manual_override:
+                logging.info("🔧 Manual Override Active. Skipping ACO and using default cycle duration.")
+                # Perform default cycle duration instead of ACO optimization
+                current_pair = signal_pairs[pair_index]
+                next_pair = signal_pairs[(pair_index + 1) % 2]
+
+                # Use the default cycle duration for manual override
+                green_duration = ACO_DEFAULT_DURATION
+                red_duration = green_duration + BASE_YELLOW_DURATION
+
+                # 🟡 Transition current signals to yellow
+                for signal in current_pair:
+                    update_signal(mqtt_client, signal, "yellow", BASE_YELLOW_DURATION)
+                time.sleep(BASE_YELLOW_DURATION)
+
+                # 🔴 Transition current signals to red
+                for signal in current_pair:
+                    update_signal(mqtt_client, signal, "red", red_duration)
+
+                # 🟢 Transition next pair to green
+                for signal in next_pair:
+                    update_signal(mqtt_client, signal, "green", green_duration)
+
+                active_signal = next_pair  # ✅ Always ensure correct active signal assignment
+                time.sleep(green_duration)
+                pair_index = (pair_index + 1) % 2
+                continue
 
         with vehicle_data_lock:
             density_data = vehicle_density_data.copy()

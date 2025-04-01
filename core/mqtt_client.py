@@ -2,7 +2,6 @@ import json
 import threading
 import paho.mqtt.client as mqtt
 import logging
-import sys
 
 from config.settings import MQTT_BROKER, MQTT_PORT
 
@@ -10,7 +9,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(name)s [%(module)s] %(message)s"
 )
 
-manual_override = {}
+manual_override = False
 vehicle_density_data = {}
 emergency_events = set()
 
@@ -29,12 +28,13 @@ def on_message(client, userdata, message):
         data = json.loads(payload)
 
         if topic.startswith("signal/manual/"):
-            intersection = int(topic.split("/")[-1])
+            # intersection = int(topic.split("/")[-1])
             with manual_override_lock:
-                if data["duration"] is None:
-                    manual_override.pop(intersection, None)
-                else:
-                    manual_override[intersection] = data["duration"]
+                manual_override = True if data["set"] else False
+            if manual_override:
+                logging.info("🚨 ACO stopped and default Timers set")
+            else:
+                logging.info("🚨 ACO Started")
 
         elif topic.startswith("traffic/density/"):
             intersection = int(topic.split("/")[-1])
