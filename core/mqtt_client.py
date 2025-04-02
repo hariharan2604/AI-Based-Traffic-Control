@@ -28,13 +28,10 @@ def on_message(client, userdata, message):
         data = json.loads(payload)
 
         if topic.startswith("signal/manual/"):
-            # intersection = int(topic.split("/")[-1])
             with manual_override_lock:
                 manual_override = True if data["set"] else False
-            if manual_override:
-                logging.info("🚨 ACO stopped and default Timers set")
-            else:
-                logging.info("🚨 ACO Started")
+            logging.info(f"Manual override set to: {manual_override}")  # Log the update to verify it
+
 
         elif topic.startswith("traffic/density/"):
             intersection = int(topic.split("/")[-1])

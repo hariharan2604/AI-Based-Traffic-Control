@@ -6,17 +6,16 @@ import queue
 import logging
 
 from collections import defaultdict
-from ultralytics import YOLO
 from ultralytics.utils.plotting import Annotator, colors
 
 
 class VideoProcessor:
-    def __init__(self, video_path, port, mqtt_client, ws_server):
+    def __init__(self, video_path, port, mqtt_client, ws_server, model):
         self.video_path = video_path
         self.port = port
         self.mqtt_client = mqtt_client
         self.ws_server = ws_server
-        self.model = YOLO("models/yolo12n.engine", task="detect")
+        self.model = model  # Using the globally loaded model
         self.target_classes = {1, 2, 3, 5, 7}
         self.class_track_ids = defaultdict(set)
         self.class_track_ids_lock = threading.Lock()
@@ -25,7 +24,7 @@ class VideoProcessor:
         self.clients_connected = False
         self.stream_thread = threading.Thread(target=self.stream_frames, daemon=True)
         self.stream_thread.start()
-        logging.basicConfig(level=logging.INFO,format="%(asctime)s %(name)s [%(module)s] %(message)s")
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s [%(module)s] %(message)s")
 
     def send_frame_to_clients(self, frame, vehicle_counts):
         message = {"frame": frame, "vehicle_counts": vehicle_counts}
@@ -135,3 +134,4 @@ class VideoProcessor:
         self.stream_thread.join()
         self.mqtt_client.disconnect()
         self.ws_server.close()
+        logging.info(f"✅ Stopped video processing for {self.video_path}")
