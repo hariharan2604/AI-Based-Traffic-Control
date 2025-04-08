@@ -4,10 +4,8 @@ import threading
 import base64
 import queue
 import logging
-
 from collections import defaultdict
 from ultralytics.utils.plotting import Annotator, colors
-
 
 class VideoProcessor:
     def __init__(self, video_path, port, mqtt_client, ws_server, model):
@@ -15,7 +13,7 @@ class VideoProcessor:
         self.port = port
         self.mqtt_client = mqtt_client
         self.ws_server = ws_server
-        self.model = model  # Using the globally loaded model
+        self.model = model
         self.target_classes = {1, 2, 3, 5, 7}
         self.class_track_ids = defaultdict(set)
         self.class_track_ids_lock = threading.Lock()
@@ -50,9 +48,7 @@ class VideoProcessor:
             while not self.stop_event.is_set():
                 if self.ws_server.client_count == 0:
                     if not self.clients_connected:
-                        logging.info(
-                            f"⏸️ Waiting for WebSocket clients on port {self.port}..."
-                        )
+                        logging.info(f"⏸️ Waiting for WebSocket clients on port {self.port}...")
                         self.clients_connected = True
                     self.ws_server.client_event.wait()
                 else:
@@ -61,63 +57,46 @@ class VideoProcessor:
                 ret, im0 = cap.read()
                 if not ret:
                     logging.info(f"🔄 Rewinding video {self.video_path}...")
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # Reset to the beginning
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                     continue
 
-                if im0.shape[1] != w or im0.shape[0] != h:
-                    im0 = cv2.resize(im0, (w, h))
-
+                im0 = cv2.resize(im0, (w, h))
                 annotator = Annotator(im0, line_width=2)
+
                 try:
-                    results = self.model.track(
-                        im0,
-                        persist=True,
-                        tracker="datasets/bytetrack.yaml",
-                        verbose=False,
-                    )
+                    results = self.model.track(im0, persist=True, tracker="datasets/bytetrack.yaml", verbose=False)
                 except Exception as e:
                     logging.error(f"⚠️ YOLO inference error: {e}")
                     continue
 
-                if results[0].boxes.id is not None and results[0].boxes.cls is not None:
+                if results and results[0].boxes.id is not None and results[0].boxes.cls is not None:
                     bboxes = results[0].boxes.xyxy
                     track_ids = results[0].boxes.id.int().cpu().tolist()
                     class_indices = results[0].boxes.cls.int().cpu().tolist()
 
                     with self.class_track_ids_lock:
-                        for bbox, track_id, class_idx in zip(
-                            bboxes, track_ids, class_indices
-                        ):
+                        for bbox, track_id, class_idx in zip(bboxes, track_ids, class_indices):
                             if class_idx in self.target_classes:
                                 class_name = self.model.names[class_idx]
                                 label = f"{class_name} {track_id}"
                                 self.class_track_ids[class_name].add(track_id)
-                                annotator.box_label(
-                                    bbox, label, color=colors(track_id, True)
-                                )
+                                annotator.box_label(bbox, label, color=colors(track_id, True))
 
-                _, buffer = cv2.imencode(
-                    ".jpg", im0, [int(cv2.IMWRITE_JPEG_QUALITY), 65]
-                )
+                _, buffer = cv2.imencode(".jpg", im0, [int(cv2.IMWRITE_JPEG_QUALITY), 65])
                 encoded_frame = base64.b64encode(buffer).decode("utf-8")
 
                 with self.class_track_ids_lock:
                     vehicle_counts = {
-                        cls: len(ids)
-                        for cls, ids in self.class_track_ids.items()
-                        if ids
+                        cls: len(ids) for cls, ids in self.class_track_ids.items() if ids
                     }
 
                 if not self.frame_queue.full():
                     self.frame_queue.put((encoded_frame, vehicle_counts))
 
-                self.mqtt_client.publish(
-                    f"traffic/density/{self.port}", json.dumps(vehicle_counts)
-                )
+                self.mqtt_client.publish(f"traffic/density/{self.port}", json.dumps(vehicle_counts))
 
         except Exception as e:
             logging.error(f"⚠️ Error processing {self.video_path}: {e}")
-
         finally:
             cap.release()
 
@@ -127,11 +106,9 @@ class VideoProcessor:
                 frame, vehicle_counts = self.frame_queue.get(timeout=0.05)
                 self.send_frame_to_clients(frame, vehicle_counts)
             except queue.Empty:
-                pass
+                continue
 
     def stop(self):
         self.stop_event.set()
-        self.stream_thread.join()
-        self.mqtt_client.disconnect()
-        self.ws_server.close()
+        self.stream_thread.join(timeout=1.0)
         logging.info(f"✅ Stopped video processing for {self.video_path}")

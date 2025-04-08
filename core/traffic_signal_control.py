@@ -1,8 +1,10 @@
+# traffic_signal_control.py
+
 import json
 import time
 import logging
-
 from collections import deque
+
 from config.settings import (
     ACO_DEFAULT_DURATION,
     ACO_MAX_DURATION,
@@ -20,8 +22,8 @@ from core.mqtt_client import (
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(name)s [%(module)s] %(message)s"
 )
+
 signal_states = {}
-# signal_timers = {}
 density_history = {}
 active_signal = None
 last_active_signal = None
@@ -40,7 +42,7 @@ def initialize_signals(mqtt_client):
         update_signal(
             mqtt_client, signal, "red", ACO_DEFAULT_DURATION + BASE_YELLOW_DURATION
         )
-    logging.info(f"🚦 Initialization complete. {active_signal} starts as GREEN.")
+    logging.info(f"🚦 Initialized: {active_signal} starts as GREEN.")
     time.sleep(ACO_DEFAULT_DURATION)
 
 
@@ -57,7 +59,7 @@ def aco_optimize_signal(density_data):
     pair_durations = {}
 
     density_data = {str(k): v for k, v in density_data.items()}
-    logging.info(f"📊 Density Data Received: {json.dumps(density_data, indent=2)}")
+    logging.info(f"📊 Received vehicle density:\n{json.dumps(density_data, indent=2)}")
 
     total_density = sum(
         sum(vehicle_counts.values()) for vehicle_counts in density_data.values()
@@ -68,23 +70,15 @@ def aco_optimize_signal(density_data):
 
     for pair in signal_pairs:
         pair_density = sum(
-            (
-                sum(density_data.get(str(signal), {}).values())
-                if str(signal) in density_data
-                else 0
-            )
+            sum(density_data.get(str(signal), {}).values())
             for signal in pair
         )
-        density_ratio = (
-            (pair_density / (total_density + 1e-6)) if total_density > 0 else 0.5
+        ratio = (pair_density / (total_density + 1e-6)) if total_density > 0 else 0.5
+        ratio = max(MIN_RATIO, min(MAX_RATIO, ratio))
+        duration = int(
+            ACO_DEFAULT_DURATION + ratio * (ACO_MAX_DURATION - ACO_DEFAULT_DURATION)
         )
-        density_ratio = max(MIN_RATIO, min(MAX_RATIO, density_ratio))
-        green_duration = int(
-            ACO_DEFAULT_DURATION
-            + density_ratio * (ACO_MAX_DURATION - ACO_DEFAULT_DURATION)
-        )
-
-        pair_durations[pair] = green_duration
+        pair_durations[pair] = duration
 
     return pair_durations
 
@@ -98,7 +92,7 @@ def update_signal(mqtt_client, signal, state, duration):
     }
     mqtt_client.publish(f"signal/status/{signal}", json.dumps(payload))
     logging.info(
-        f"🚦 Updating {signal} to {state.upper()} for {duration}s (Emergency: {int(signal) in emergency_events})"
+        f"🚦 {signal} → {state.upper()} for {duration}s (Emergency: {int(signal) in emergency_events})"
     )
 
 
@@ -109,18 +103,14 @@ def check_emergency_interrupt():
     emergency_set = {str(signal) for signal in emergency_events}
     for pair in [("4001", "4003"), ("4002", "4004")]:
         if any(signal in emergency_set for signal in pair):
-            logging.info(
-                f"⚠️ Emergency event detected in {pair}. Immediate action required."
-            )
+            logging.info(f"⚠️ Emergency detected in {pair}.")
             return pair
     return None
 
 
 def handle_emergency(mqtt_client, emergency_pair):
     global active_signal, last_active_signal
-    logging.info(
-        f"🚨 Emergency detected in {emergency_pair}! Interrupting normal cycle."
-    )
+    logging.info(f"🚨 Handling emergency in {emergency_pair}.")
 
     green_duration = ACO_MAX_DURATION + EMERGENCY_GREEN_BOOST
     yellow_duration = BASE_YELLOW_DURATION
@@ -128,33 +118,29 @@ def handle_emergency(mqtt_client, emergency_pair):
 
     all_signals = {"4001", "4002", "4003", "4004"}
     emergency_set = set(emergency_pair)
-    non_emergency_signals = all_signals - emergency_set
+    non_emergency = all_signals - emergency_set
 
-    # 🟡 Transition active signals to yellow
     for signal in active_signal:
         update_signal(mqtt_client, signal, "yellow", yellow_duration)
+    time.sleep(yellow_duration)
 
-    time.sleep(BASE_YELLOW_DURATION) 
-    
-    # 🔴 Transition non-emergency signals to red
-    for signal in non_emergency_signals:
+    for signal in non_emergency:
         update_signal(mqtt_client, signal, "red", red_duration)
-
-    # 🟢 Activate emergency pair
     for signal in emergency_pair:
         update_signal(mqtt_client, signal, "green", green_duration)
 
-    last_active_signal = emergency_pair  # ✅ Assign emergency pair as active
+    last_active_signal = emergency_pair
+    active_signal = emergency_pair
     time.sleep(green_duration)
 
 
-def cycle_signals(mqtt_client, ws_servers):
+def cycle_signals(mqtt_client, stop_event):
     global active_signal, last_active_signal
     signal_pairs = [("4001", "4003"), ("4002", "4004")]
     pair_index = 0
     initialized = False
 
-    while True:
+    while not stop_event.is_set():
         if not initialized:
             initialize_signals(mqtt_client)
             initialized = True
@@ -166,62 +152,47 @@ def cycle_signals(mqtt_client, ws_servers):
 
         with manual_override_lock:
             if manual_override:
-                logging.info("🔧 Manual Override Active. Skipping ACO and using default cycle duration.")
-                # Perform default cycle duration instead of ACO optimization
+                logging.info("🔧 Manual override: default cycle in effect.")
                 current_pair = signal_pairs[pair_index]
                 next_pair = signal_pairs[(pair_index + 1) % 2]
 
-                # Use the default cycle duration for manual override
-                green_duration = ACO_DEFAULT_DURATION
-                red_duration = green_duration + BASE_YELLOW_DURATION
-
-                # 🟡 Transition current signals to yellow
                 for signal in current_pair:
                     update_signal(mqtt_client, signal, "yellow", BASE_YELLOW_DURATION)
-                time.sleep(BASE_YELLOW_DURATION)
+                if stop_event.wait(BASE_YELLOW_DURATION): break
 
-                # 🔴 Transition current signals to red
                 for signal in current_pair:
-                    update_signal(mqtt_client, signal, "red", red_duration)
-
-                # 🟢 Transition next pair to green
+                    update_signal(mqtt_client, signal, "red", ACO_DEFAULT_DURATION)
                 for signal in next_pair:
-                    update_signal(mqtt_client, signal, "green", green_duration)
+                    update_signal(mqtt_client, signal, "green", ACO_DEFAULT_DURATION)
 
-                active_signal = next_pair  # ✅ Always ensure correct active signal assignment
-                time.sleep(green_duration)
+                active_signal = next_pair
+                if stop_event.wait(ACO_DEFAULT_DURATION): break
                 pair_index = (pair_index + 1) % 2
                 continue
 
         with vehicle_data_lock:
             density_data = vehicle_density_data.copy()
 
-        next_pair_durations = aco_optimize_signal(density_data)
+        next_durations = aco_optimize_signal(density_data)
 
-        # Determine the next pair considering last_active_signal
         if last_active_signal:
             pair_index = signal_pairs.index(last_active_signal)
-            last_active_signal = None  # Reset after using it
+            last_active_signal = None
 
         current_pair = signal_pairs[pair_index]
         next_pair = signal_pairs[(pair_index + 1) % 2]
-
-        green_duration = next_pair_durations.get(next_pair, ACO_DEFAULT_DURATION)
+        green_duration = next_durations.get(next_pair, ACO_DEFAULT_DURATION)
         red_duration = green_duration + BASE_YELLOW_DURATION
 
-        # 🟡 Transition current signals to yellow
         for signal in current_pair:
             update_signal(mqtt_client, signal, "yellow", BASE_YELLOW_DURATION)
-        time.sleep(BASE_YELLOW_DURATION)
+        if stop_event.wait(BASE_YELLOW_DURATION): break
 
-        # 🔴 Transition current signals to red
         for signal in current_pair:
             update_signal(mqtt_client, signal, "red", red_duration)
-
-        # 🟢 Transition next pair to green
         for signal in next_pair:
             update_signal(mqtt_client, signal, "green", green_duration)
 
-        active_signal = next_pair  # ✅ Always ensure correct active signal assignment
-        time.sleep(green_duration)
+        active_signal = next_pair
+        if stop_event.wait(green_duration): break
         pair_index = (pair_index + 1) % 2
