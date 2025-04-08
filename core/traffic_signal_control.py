@@ -1,5 +1,3 @@
-# traffic_signal_control.py
-
 import json
 import time
 import logging
@@ -151,14 +149,15 @@ def cycle_signals(mqtt_client, stop_event):
             continue
 
         with manual_override_lock:
-            if manual_override:
+            if manual_override["active"]:
                 logging.info("🔧 Manual override: default cycle in effect.")
                 current_pair = signal_pairs[pair_index]
                 next_pair = signal_pairs[(pair_index + 1) % 2]
 
                 for signal in current_pair:
                     update_signal(mqtt_client, signal, "yellow", BASE_YELLOW_DURATION)
-                if stop_event.wait(BASE_YELLOW_DURATION): break
+                if stop_event.wait(BASE_YELLOW_DURATION): 
+                    break
 
                 for signal in current_pair:
                     update_signal(mqtt_client, signal, "red", ACO_DEFAULT_DURATION)
@@ -166,7 +165,8 @@ def cycle_signals(mqtt_client, stop_event):
                     update_signal(mqtt_client, signal, "green", ACO_DEFAULT_DURATION)
 
                 active_signal = next_pair
-                if stop_event.wait(ACO_DEFAULT_DURATION): break
+                if stop_event.wait(ACO_DEFAULT_DURATION): 
+                    break
                 pair_index = (pair_index + 1) % 2
                 continue
 
@@ -186,7 +186,8 @@ def cycle_signals(mqtt_client, stop_event):
 
         for signal in current_pair:
             update_signal(mqtt_client, signal, "yellow", BASE_YELLOW_DURATION)
-        if stop_event.wait(BASE_YELLOW_DURATION): break
+        if stop_event.wait(BASE_YELLOW_DURATION): 
+            break
 
         for signal in current_pair:
             update_signal(mqtt_client, signal, "red", red_duration)
@@ -194,5 +195,6 @@ def cycle_signals(mqtt_client, stop_event):
             update_signal(mqtt_client, signal, "green", green_duration)
 
         active_signal = next_pair
-        if stop_event.wait(green_duration): break
+        if stop_event.wait(green_duration): 
+            break
         pair_index = (pair_index + 1) % 2

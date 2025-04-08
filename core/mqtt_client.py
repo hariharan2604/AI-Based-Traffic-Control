@@ -6,21 +6,19 @@ import paho.mqtt.client as mqtt
 
 from config.settings import MQTT_BROKER, MQTT_PORT
 
-# Logging setup
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(name)s [%(module)s] %(message)s"
 )
 
-# Shared state
 vehicle_density_data = {}
 vehicle_data_lock = Lock()
 
-manual_override = False
+# manual_override = False
+manual_override = {"active": False}
 manual_override_lock = Lock()
 
 emergency_events = set()
 
-# Topic definitions
 DENSITY_TOPIC_PREFIX = "traffic/density/"
 MANUAL_OVERRIDE_TOPIC = "signal/manual/"
 EMERGENCY_TOPIC = "traffic/emergency/"
@@ -29,7 +27,7 @@ EMERGENCY_TOPIC = "traffic/emergency/"
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
         logging.info("✅ MQTT connected successfully.")
-        client.subscribe([(DENSITY_TOPIC_PREFIX + "#", 0), (MANUAL_OVERRIDE_TOPIC, 0), (EMERGENCY_TOPIC+"#", 0)])
+        client.subscribe([(DENSITY_TOPIC_PREFIX + "#", 0), (MANUAL_OVERRIDE_TOPIC+"#", 0), (EMERGENCY_TOPIC+"#", 0)])
     else:
         logging.error(f"❌ MQTT connection failed with code {rc}")
 
@@ -48,12 +46,11 @@ def on_message(client, userdata, msg):
         signal_id = topic.split("/")[-1]
         with vehicle_data_lock:
             vehicle_density_data[signal_id] = data
-        # logging.info(f"📥 Density updated for {signal_id}: {data}")
 
-    elif topic == MANUAL_OVERRIDE_TOPIC:
+    elif topic.startswith(MANUAL_OVERRIDE_TOPIC):
         global manual_override
         with manual_override_lock:
-            manual_override = bool(data.get("enabled", False))
+            manual_override["active"] = bool(data.get("set", False))
         logging.info(f"🛠 Manual override set to {manual_override}")
 
     elif topic.startswith(EMERGENCY_TOPIC):
