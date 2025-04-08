@@ -1,14 +1,11 @@
 import json
-import logging
+from utils.logging import logging
 from threading import Lock
 
 import paho.mqtt.client as mqtt
 
 from config.settings import MQTT_BROKER, MQTT_PORT
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s %(name)s [%(module)s] %(message)s"
-)
 
 vehicle_density_data = {}
 vehicle_data_lock = Lock()
@@ -27,7 +24,13 @@ EMERGENCY_TOPIC = "traffic/emergency/"
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
         logging.info("✅ MQTT connected successfully.")
-        client.subscribe([(DENSITY_TOPIC_PREFIX + "#", 0), (MANUAL_OVERRIDE_TOPIC+"#", 0), (EMERGENCY_TOPIC+"#", 0)])
+        client.subscribe(
+            [
+                (DENSITY_TOPIC_PREFIX + "#", 0),
+                (MANUAL_OVERRIDE_TOPIC + "#", 0),
+                (EMERGENCY_TOPIC + "#", 0),
+            ]
+        )
     else:
         logging.error(f"❌ MQTT connection failed with code {rc}")
 

@@ -1,4 +1,4 @@
-import logging
+from utils.logging import logging
 import threading
 import sys
 import signal
@@ -9,9 +9,6 @@ from core.mqtt_client import start_mqtt
 from core.websocket_server import WebSocketServer
 from ultralytics import YOLO
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s %(name)s [%(module)s] %(message)s"
-)
 
 stop_event = threading.Event()
 model_path = "models/yolo12n.engine"

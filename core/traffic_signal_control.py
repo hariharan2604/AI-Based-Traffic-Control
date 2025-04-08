@@ -1,6 +1,6 @@
 import json
 import time
-import logging
+from utils.logging import logging
 from collections import deque
 
 from config.settings import (
@@ -17,9 +17,6 @@ from core.mqtt_client import (
     emergency_events,
 )
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s %(name)s [%(module)s] %(message)s"
-)
 
 signal_states = {}
 density_history = {}
@@ -68,8 +65,7 @@ def aco_optimize_signal(density_data):
 
     for pair in signal_pairs:
         pair_density = sum(
-            sum(density_data.get(str(signal), {}).values())
-            for signal in pair
+            sum(density_data.get(str(signal), {}).values()) for signal in pair
         )
         ratio = (pair_density / (total_density + 1e-6)) if total_density > 0 else 0.5
         ratio = max(MIN_RATIO, min(MAX_RATIO, ratio))
@@ -156,7 +152,7 @@ def cycle_signals(mqtt_client, stop_event):
 
                 for signal in current_pair:
                     update_signal(mqtt_client, signal, "yellow", BASE_YELLOW_DURATION)
-                if stop_event.wait(BASE_YELLOW_DURATION): 
+                if stop_event.wait(BASE_YELLOW_DURATION):
                     break
 
                 for signal in current_pair:
@@ -165,7 +161,7 @@ def cycle_signals(mqtt_client, stop_event):
                     update_signal(mqtt_client, signal, "green", ACO_DEFAULT_DURATION)
 
                 active_signal = next_pair
-                if stop_event.wait(ACO_DEFAULT_DURATION): 
+                if stop_event.wait(ACO_DEFAULT_DURATION):
                     break
                 pair_index = (pair_index + 1) % 2
                 continue
@@ -186,7 +182,7 @@ def cycle_signals(mqtt_client, stop_event):
 
         for signal in current_pair:
             update_signal(mqtt_client, signal, "yellow", BASE_YELLOW_DURATION)
-        if stop_event.wait(BASE_YELLOW_DURATION): 
+        if stop_event.wait(BASE_YELLOW_DURATION):
             break
 
         for signal in current_pair:
@@ -195,6 +191,6 @@ def cycle_signals(mqtt_client, stop_event):
             update_signal(mqtt_client, signal, "green", green_duration)
 
         active_signal = next_pair
-        if stop_event.wait(green_duration): 
+        if stop_event.wait(green_duration):
             break
         pair_index = (pair_index + 1) % 2
