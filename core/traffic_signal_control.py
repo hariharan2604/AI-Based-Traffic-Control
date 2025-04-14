@@ -156,7 +156,7 @@ def cycle_signals(mqtt_client, stop_event):
                     break
 
                 for signal in current_pair:
-                    update_signal(mqtt_client, signal, "red", ACO_DEFAULT_DURATION)
+                    update_signal(mqtt_client, signal, "red", ACO_DEFAULT_DURATION+BASE_YELLOW_DURATION)
                 for signal in next_pair:
                     update_signal(mqtt_client, signal, "green", ACO_DEFAULT_DURATION)
 
