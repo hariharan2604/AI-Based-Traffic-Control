@@ -10,3 +10,5 @@ ultralytics
 websocket-server
 torch-tensorrt 
 tensorrt
+onnx
+onnxruntime-gpu

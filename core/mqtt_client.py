@@ -10,7 +10,6 @@ from config.settings import MQTT_BROKER, MQTT_PORT
 vehicle_density_data = {}
 vehicle_data_lock = Lock()
 
-# manual_override = False
 manual_override = {"active": False}
 manual_override_lock = Lock()
 
